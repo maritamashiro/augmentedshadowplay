@@ -13,6 +13,10 @@ let cueHeldSince = null;
 let cueReleasedSince = null;
 let cueLatched = true;
 let cameraGeneration = 0;
+let trackedPalm = null;
+let trackedPalmAt = -Infinity;
+let handOffset = { x: 0, y: 0 };
+const HAND_LOST_MS = 450;
 const cameraStatus = message => {
   document.querySelector('#camera-status').textContent = message;
 };
@@ -68,7 +72,7 @@ async function enableCamera() {
     await cameraVideo.play();
     button.textContent = 'Disable camera';
     cameraStatus('Camera on — adjust opacity and click the landing point on your palm.');
-    if (document.querySelector('#camera-cue').checked) await startPalmTracking();
+    if (trackingRequested()) await startPalmTracking();
   } catch (error) {
     await disableCamera();
     cameraStatus(cameraErrorMessage(error) + ' Space still works.');
@@ -83,6 +87,8 @@ async function stopPalmTracking() {
   const hands = cameraHands;
   cameraHands = null;
   learnedPalmNormal = latestPalm = null;
+  trackedPalm = null;
+  trackedPalmAt = -Infinity;
   resetCameraGate();
   document.querySelector('#learn-pose').disabled = true;
   if (hands) { try { await hands.close(); } catch { /* Already stopped. */ } }
@@ -116,6 +122,7 @@ async function startPalmTracking() {
         if (generation !== cameraGeneration) return;
         await stopPalmTracking();
         document.querySelector('#camera-cue').checked = false;
+        document.querySelector('#hand-follow').checked = false;
         cameraStatus('Palm tracking stopped: ' + error.message + ' Camera overlay and Space still work.');
       }
     }
@@ -124,6 +131,7 @@ async function startPalmTracking() {
     if (generation !== cameraGeneration) return;
     await stopPalmTracking();
     document.querySelector('#camera-cue').checked = false;
+    document.querySelector('#hand-follow').checked = false;
     cameraStatus(error.message + ' Camera overlay and Space still work.');
   }
 }
@@ -161,13 +169,86 @@ function drawCameraOverlay(light) {
 document.querySelector('#camera-opacity').oninput = event => {
   document.querySelector('#opacity-value').textContent = event.target.value + '%';
 };
-document.querySelector('#camera-cue').onchange = async event => {
-  if (!event.target.checked) {
+function trackingRequested() {
+  return document.querySelector('#camera-cue').checked || document.querySelector('#hand-follow').checked;
+}
+
+async function changeTrackingMode() {
+  resetCameraGate();
+  if (trackingRequested()) {
+    if (!cameraStream) cameraStatus('Enable the camera first.');
+    else if (!cameraHands) await startPalmTracking();
+  } else {
     await stopPalmTracking();
-    cameraStatus(cameraStream ? 'Palm cue off. Camera overlay and Space still work.' : 'Camera off. Space always works.');
-  } else if (cameraStream) await startPalmTracking();
-  else cameraStatus('Enable the camera first.');
+    cameraStatus(cameraStream ? 'Tracking off. Camera overlay and Space still work.' : 'Camera off. Space always works.');
+  }
+}
+
+document.querySelector('#camera-cue').onchange = changeTrackingMode;
+document.querySelector('#hand-follow').onchange = changeTrackingMode;
+document.querySelector('#reset-hand-offset').onclick = () => { handOffset = { x: 0, y: 0 }; };
+document.querySelector('#camera-mirror').onchange = () => {
+  // Avoid blending coordinates from opposite mirror orientations.
+  trackedPalm = null;
+  trackedPalmAt = -Infinity;
+  resetCameraGate();
 };
+
+// Use exactly the same cover crop and mirroring as the rehearsal video.
+function cameraPointToCanvas(point) {
+  if (!cameraVideo?.videoWidth || !cameraVideo?.videoHeight) return null;
+  const light = lightCircle();
+  const cover = Math.max(light.radius * 2 / cameraVideo.videoWidth,
+    light.radius * 2 / cameraVideo.videoHeight);
+  const mirror = document.querySelector('#camera-mirror').checked ? -1 : 1;
+  return {
+    x: (light.x + (point.x - 0.5) * cameraVideo.videoWidth * cover * mirror) / width,
+    y: (light.y + (point.y - 0.5) * cameraVideo.videoHeight * cover) / height
+  };
+}
+
+function updateTrackedPalm(points, open, now) {
+  if (!points || !open) return;
+  const palm = [0, 5, 9, 13, 17].reduce((sum, i) => ({
+    x: sum.x + points[i].x / 5, y: sum.y + points[i].y / 5
+  }), { x: 0, y: 0 });
+  const point = cameraPointToCanvas(palm);
+  if (!point) return;
+  const light = lightCircle();
+  if (Math.hypot(point.x * width - light.x, point.y * height - light.y) > light.radius - 16) return;
+  const fresh = now - trackedPalmAt < HAND_LOST_MS;
+  // Time-based low-pass filtering reduces landmark jitter across frame rates.
+  const blend = fresh ? 1 - Math.exp(-(now - trackedPalmAt) / 90) : 1;
+  trackedPalm = fresh ? {
+    x: trackedPalm.x + (point.x - trackedPalm.x) * blend,
+    y: trackedPalm.y + (point.y - trackedPalm.y) * blend
+  } : point;
+  trackedPalmAt = now;
+}
+
+function trackedLanding() {
+  if (!document.querySelector('#hand-follow').checked || !cameraStream || !trackedPalm ||
+      performance.now() - trackedPalmAt > HAND_LOST_MS) return null;
+  const point = createVector(trackedPalm.x + handOffset.x, trackedPalm.y + handOffset.y);
+  constrainLanding(point);
+  return point;
+}
+
+function updateHandStatus() {
+  const following = document.querySelector('#hand-follow').checked;
+  document.querySelector('#hand-status').textContent = !following ? 'Hand following off — manual landing.'
+    : !cameraStream ? 'Enable the camera to follow your palm.'
+    : trackedLanding() ? 'Following open palm — click to align the feet.'
+    : 'Looking for an open palm inside the circle. Last bird position held.';
+}
+
+function placeLanding(x, y) {
+  const target = createVector(x, y);
+  constrainLanding(target);
+  if (document.querySelector('#hand-follow').checked && trackedPalm && trackedLanding()) {
+    handOffset = { x: target.x - trackedPalm.x, y: target.y - trackedPalm.y };
+  } else landing.set(target);
+}
 
 function resetCameraGate() {
   cueHeldSince = cueReleasedSince = null;
@@ -195,10 +276,12 @@ function palmFeatures(points) {
 
 function handleCameraResults(results) {
   latestPalm = palmFeatures(results.multiHandWorldLandmarks?.[0]);
-  if (!learnedPalmNormal) return;
+  const now = performance.now();
+  updateTrackedPalm(results.multiHandLandmarks?.[0], latestPalm?.open, now);
+  if (!document.querySelector('#camera-cue').checked || !learnedPalmNormal) return;
   const dot = latestPalm?.normal.reduce((sum, n, i) => sum + n * learnedPalmNormal[i], 0) ?? -1;
   const matches = latestPalm?.open && dot > 0.82;
-  updateCameraGate(Boolean(matches), performance.now());
+  updateCameraGate(Boolean(matches) && (!document.querySelector('#hand-follow').checked || Boolean(trackedLanding())), now);
 }
 
 // Separate timing from detection so the one-shot behavior can be tested.

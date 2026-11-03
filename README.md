@@ -31,6 +31,18 @@ Expand **Calibration & camera** and click **Enable camera**. The live camera ima
 
 The feed is center-cropped to fill the circle without stretching. **Disable camera** releases the webcam. Rehearsal uses browser camera access only; Internet/model downloads are needed only when **Enable palm cue** is checked. Tracking failures leave the camera overlay usable.
 
+## Hand tracking for screen rehearsal
+
+1. Expand **Calibration & camera**, click **Enable camera**, and keep the overlay visible.
+2. Check **Follow open palm**. Hand tracking assets download the first time. Put your open hand inside the circle in good camera light.
+3. The landing crosshair follows the center of your palm. Click the spot where you want the feet, or use arrows, to add an alignment offset. **Reset palm alignment** removes that offset.
+4. Press **Space**. The bird approaches the moving perch and continues following it while perched and pecking.
+5. For a hands-free trigger, also check **Enable palm cue**, offer a palm facing the ceiling, and click **Learn palm-up pose**. Withdraw briefly and offer it again.
+
+Following accepts an open hand without pose learning; the automatic cue requires learning your palm-up orientation. The landmark filter reduces jitter. A missing/closed hand or a hand outside the circle stops updating the bird after a short grace period; the bird holds its last position rather than jumping. Turn following off to return to click-based manual calibration. The camera and tracking can run with the video overlay hidden.
+
+Coordinates match the overlay's crop and mirror setting. This is suitable for camera rehearsal, not a calibrated camera-to-projector mapping. A physical projection will need a separate mapping/calibration pass. Real-hand accuracy still depends on lighting, camera angle and occlusion.
+
 ## Optional camera cue
 
 Use a browser that supports camera access on **HTTPS or localhost**. Local HTML camera permissions vary by browser; use a local server if permission is unavailable. Palm cue mode needs Internet access to `cdn.jsdelivr.net` to download pinned MediaPipe Hands 0.4.1675469240 assets. p5.js 1.11.11 is vendored locally (LGPL-2.1).
@@ -41,12 +53,12 @@ Use a browser that supports camera access on **HTTPS or localhost**. Local HTML 
 4. Withdraw your hand for at least 0.7 seconds. Offer it again and hold for 0.9 seconds to cue once. Keeping it held does not repeat the cue. Withdraw to rearm.
 5. **Disable camera** releases the camera. Space always remains available.
 
-The cue uses local 3D hand landmarks, an open-finger check, and similarity to the learned palm orientation. It is a prototype heuristic, not a physical measurement of which way the ceiling is. It tolerates slightly bent fingers but may miss a deeply cupped or occluded hand. Real camera/pose accuracy needs testing in your projector setup. Video is processed in the browser and is not uploaded. Landing coordinates are never taken from tracking.
+The cue uses local 3D hand landmarks, an open-finger check, and similarity to the learned palm orientation. It is a prototype heuristic, not a physical measurement of which way the ceiling is. It tolerates slightly bent fingers but may miss a deeply cupped or occluded hand. Real camera/pose accuracy needs testing in your projector setup. Video is processed in the browser and is not uploaded. Landing coordinates stay manual unless **Follow open palm** is enabled.
 
 ## Code
 
 - `sketch.js`: circle geometry, clipping, manual landing calibration and bird animation. Timing constants are at the top.
-- `camera.js`: optional landmark loading, pose learning, hold timing and one-shot rearming.
+- `camera.js`: optional landmark loading, palm following, camera coordinate mapping, pose learning, hold timing and one-shot rearming.
 - `index.html`: muted instructions and controls outside the circle.
 
 Browser checks cover the full animation, clipping at multiple flight/peck times, marker toggling, resize, standalone packaging and synthetic one-shot cue/rearm timing. These do not replace a real hand/projector test.

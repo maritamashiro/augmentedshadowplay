@@ -16,8 +16,7 @@ function setup() {
   const canvas = createCanvas(windowWidth, windowHeight);
   landing = createVector(0.50, 0.63);
   canvas.mousePressed(() => {
-    landing.set(mouseX / width, mouseY / height);
-    constrainLanding();
+    placeLanding(mouseX / width, mouseY / height);
   });
   document.querySelector('#marker').onchange = event => {
     markerVisible = event.target.checked;
@@ -31,7 +30,7 @@ function setup() {
 
 function startFlight() {
   // Snapshot the perch so adjustments during a flight apply to the next replay.
-  flightTarget = landing.copy();
+  flightTarget = (trackedLanding() || landing).copy();
   const light = lightCircle();
   flightStart = createVector((light.x - light.radius - 160) / width,
     Math.max(0.12, flightTarget.y - 0.24));
@@ -42,20 +41,21 @@ function lightCircle() {
   return { x: width / 2, y: height / 2, radius: min(height * 0.38, width * 0.31) };
 }
 
-function constrainLanding() {
+function constrainLanding(point = landing) {
   // Leave a little margin; the feet cannot be calibrated into the black border.
   const light = lightCircle();
-  const dx = landing.x * width - light.x;
-  const dy = landing.y * height - light.y;
+  const dx = point.x * width - light.x;
+  const dy = point.y * height - light.y;
   const distance = Math.hypot(dx, dy);
   const limit = max(1, light.radius - 16);
   if (distance > limit) {
-    landing.set((light.x + dx / distance * limit) / width,
+    point.set((light.x + dx / distance * limit) / width,
       (light.y + dy / distance * limit) / height);
   }
 }
 
 function draw() {
+  updateHandStatus();
   background(0);
   const light = lightCircle();
   noStroke();
@@ -76,6 +76,12 @@ function drawSequence() {
 
   const elapsed = (millis() - startedAt) / 1000;
   const progress = constrain(elapsed / FLIGHT_SECONDS, 0, 1);
+  const hand = trackedLanding();
+  if (hand) {
+    // Ease the bird toward a moving perch, including after landing.
+    const follow = 1 - Math.exp(-min(deltaTime, 100) / 80);
+    flightTarget.lerp(hand, follow);
+  }
   // Cubic ease-out brings the bird smoothly to rest at the perch.
   const travel = 1 - pow(1 - progress, 3);
   const x = lerp(flightStart.x, flightTarget.x, travel) * width;
@@ -205,8 +211,9 @@ function smoothstep(low, high, value) {
 }
 
 function drawLandingMarker() {
-  const x = landing.x * width;
-  const y = landing.y * height;
+  const point = trackedLanding() || landing;
+  const x = point.x * width;
+  const y = point.y * height;
   push();
   stroke('#b65c45');
   strokeWeight(1);
@@ -236,13 +243,12 @@ function keyPressed(event) {
   }
   if (key.toLowerCase() === 'f') fullscreen(!fullscreen());
   const step = event.shiftKey ? 10 : 1;
-  if (keyCode === LEFT_ARROW) landing.x -= step / width;
-  if (keyCode === RIGHT_ARROW) landing.x += step / width;
-  if (keyCode === UP_ARROW) landing.y -= step / height;
-  if (keyCode === DOWN_ARROW) landing.y += step / height;
-  landing.x = constrain(landing.x, 0, 1);
-  landing.y = constrain(landing.y, 0, 1);
-  constrainLanding();
+  const point = trackedLanding() || landing.copy();
+  if (keyCode === LEFT_ARROW) point.x -= step / width;
+  if (keyCode === RIGHT_ARROW) point.x += step / width;
+  if (keyCode === UP_ARROW) point.y -= step / height;
+  if (keyCode === DOWN_ARROW) point.y += step / height;
+  if ([LEFT_ARROW, RIGHT_ARROW, UP_ARROW, DOWN_ARROW].includes(keyCode)) placeLanding(point.x, point.y);
   if (key === ' ' || [LEFT_ARROW, RIGHT_ARROW, UP_ARROW, DOWN_ARROW].includes(keyCode)) return false;
 }
 
