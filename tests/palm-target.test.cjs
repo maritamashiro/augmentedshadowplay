@@ -154,3 +154,58 @@ test('manual flight stays perched without a camera hand', () => {
   `, context);
   assert.equal(stays, true);
 });
+
+function cueTestContext() {
+  const { context, element } = sketchContext();
+  vm.runInContext(`
+    let triggers = 0;
+    startFlight = () => { triggers++; return true; };
+    cueLatched = false;
+  `, context);
+  return { context, element };
+}
+
+test('brief pose flicker pauses hold and still produces exactly one cue', () => {
+  const { context } = cueTestContext();
+  const result = vm.runInContext(`
+    for (let t = 0; t <= 1100; t += 50) updateCameraGate(t < 400 || t >= 550, t, true);
+    for (let t = 1150; t <= 2200; t += 50) updateCameraGate(true, t, true);
+    ({ triggers, cueLatched });
+  `, context);
+  assert.equal(result.triggers, 1);
+  assert.equal(result.cueLatched, true);
+});
+
+test('a longer pose mismatch resets the cue hold', () => {
+  const { context } = cueTestContext();
+  const result = vm.runInContext(`
+    for (let t = 0; t <= 400; t += 50) updateCameraGate(true, t, true);
+    for (let t = 450; t <= 800; t += 50) updateCameraGate(false, t, true);
+    for (let t = 850; t <= 1500; t += 50) updateCameraGate(true, t, true);
+    triggers;
+  `, context);
+  assert.equal(result, 0);
+});
+
+test('pose changes cannot rearm; actual hand withdrawal can', () => {
+  const { context } = cueTestContext();
+  const result = vm.runInContext(`
+    cueLatched = true;
+    for (let t = 0; t <= 1000; t += 50) updateCameraGate(false, t, true);
+    const visibleStillLatched = cueLatched;
+    for (let t = 1050; t <= 1850; t += 50) updateCameraGate(false, t, false);
+    ({ visibleStillLatched, rearmed: !cueLatched });
+  `, context);
+  assert.equal(result.visibleStillLatched, true);
+  assert.equal(result.rearmed, true);
+});
+
+test('a stalled inference loop cannot complete a cue hold', () => {
+  const { context } = cueTestContext();
+  const result = vm.runInContext(`
+    updateCameraGate(true, 0, true);
+    updateCameraGate(true, 1200, true);
+    triggers;
+  `, context);
+  assert.equal(result, 0);
+});

@@ -3,6 +3,8 @@
 const CAMERA_ASSETS = 'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/';
 const HOLD_MS = 900;
 const RELEASE_MS = 700;
+const CUE_FLICKER_MS = 220;
+const MAX_CUE_FRAME_GAP_MS = 800;
 let cameraStream = null;
 let cameraHands = null;
 let cameraVideo = null;
@@ -12,6 +14,8 @@ let latestPalm = null;
 let cueHeldSince = null;
 let cueReleasedSince = null;
 let cueLatched = true;
+let cueMissedSince = null;
+let cueLastSampleAt = null;
 let cameraGeneration = 0;
 let trackedPalm = null;
 let trackedPalmAt = -Infinity;
@@ -257,7 +261,8 @@ function placeLanding(x, y) {
 }
 
 function resetCameraGate() {
-  cueHeldSince = cueReleasedSince = null;
+  cueHeldSince = cueReleasedSince = cueMissedSince = cueLastSampleAt = null;
+  setCueProgress(0);
   cueLatched = true; // Learning cannot itself trigger the bird.
 }
 
@@ -270,7 +275,7 @@ function palmFeatures(points) {
   for (const base of [5, 9, 13, 17]) {
     let length = 0;
     for (let j = base; j < base + 3; j++) length += distance(points[j], points[j + 1]);
-    if (length > 0 && distance(points[base], points[base + 3]) / length > 0.78) openFingers++;
+    if (length > 0 && distance(points[base], points[base + 3]) / length > 0.72) openFingers++;
   }
   const a = { x: points[5].x - points[0].x, y: points[5].y - points[0].y, z: points[5].z - points[0].z };
   const b = { x: points[17].x - points[0].x, y: points[17].y - points[0].y, z: points[17].z - points[0].z };
@@ -286,30 +291,73 @@ function handleCameraResults(results) {
   updateTrackedPalm(results.multiHandLandmarks?.[0], latestPalm?.open, now);
   if (!document.querySelector('#camera-cue').checked || !learnedPalmNormal) return;
   const dot = latestPalm?.normal.reduce((sum, n, i) => sum + n * learnedPalmNormal[i], 0) ?? -1;
-  const matches = latestPalm?.open && dot > 0.82;
-  updateCameraGate(Boolean(matches) && Boolean(trackedLanding(true)), now);
+  // A looser continuation threshold stops small wrist rotations resetting a hold.
+  const threshold = cueHeldSince === null ? 0.78 : 0.66;
+  const matches = latestPalm?.open && dot > threshold;
+  updateCameraGate(Boolean(matches) && Boolean(trackedLanding(true)), now,
+    Boolean(results.multiHandLandmarks?.length));
 }
 
 // Separate timing from detection so the one-shot behavior can be tested.
-function updateCameraGate(matches, now) {
-  if (!matches) {
-    cueHeldSince = null;
-    if (cueReleasedSince === null) cueReleasedSince = now;
-    if (now - cueReleasedSince >= RELEASE_MS) cueLatched = false;
-    cameraStatus(cueLatched ? 'Withdraw your hand briefly to rearm.' : 'Ready — offer your learned palm-up pose.');
+function setCueProgress(fraction) {
+  document.querySelector('#cue-progress').value = Math.round(Math.max(0, Math.min(1, fraction)) * 100);
+}
+
+function updateCameraGate(matches, now, handVisible = matches) {
+  // A stalled inference loop cannot count as a sustained pose or withdrawal.
+  if (cueLastSampleAt !== null && now - cueLastSampleAt > MAX_CUE_FRAME_GAP_MS) {
+    cueHeldSince = cueReleasedSince = cueMissedSince = null;
+  }
+  cueLastSampleAt = now;
+
+  if (cueLatched) {
+    cueHeldSince = cueMissedSince = null;
+    setCueProgress(0);
+    // Rearm only after actual withdrawal, never just a wrist turn or closed fist.
+    if (handVisible) {
+      cueReleasedSince = null;
+      cameraStatus('Cue used — move your hand out of the camera frame to rearm.');
+    } else {
+      if (cueReleasedSince === null) cueReleasedSince = now;
+      if (now - cueReleasedSince >= RELEASE_MS) {
+        cueLatched = false;
+        cueReleasedSince = null;
+        cameraStatus('Ready — offer your learned palm-up pose.');
+      } else cameraStatus('Hand withdrawn — rearming…');
+    }
     return;
   }
-  cueReleasedSince = null;
-  if (cueLatched) { cameraStatus('Cue used — withdraw your hand to rearm.'); return; }
+
+  if (!matches) {
+    if (cueMissedSince === null) cueMissedSince = now;
+    if (now - cueMissedSince > CUE_FLICKER_MS) {
+      cueHeldSince = null;
+      setCueProgress(0);
+    }
+    cameraStatus(handVisible ? 'Open your palm toward your learned pose.' : 'Ready — bring your palm into the circle.');
+    return;
+  }
+
   if (cueHeldSince === null) cueHeldSince = now;
-  if (now - cueHeldSince < HOLD_MS) { cameraStatus('Hold your palm steady…'); return; }
-  // Do not interrupt a Space cue or a bird already in its flight/peck sequence.
+  else if (cueMissedSince !== null) {
+    // Brief dropouts pause progress; they cannot advance the hold timer.
+    if (now - cueMissedSince <= CUE_FLICKER_MS) cueHeldSince += now - cueMissedSince;
+    else cueHeldSince = now;
+  }
+  cueMissedSince = null;
+  const held = now - cueHeldSince;
+  setCueProgress(held / HOLD_MS);
+  if (held < HOLD_MS) {
+    cameraStatus('Hold your palm — ' + Math.round(held / HOLD_MS * 100) + '%');
+    return;
+  }
   const busy = departure !== null || (startedAt !== null && millis() - startedAt <
     (FLIGHT_SECONDS + PAUSE_SECONDS + PECK_SECONDS * 2) * 1000);
   if (busy) { cameraStatus('Bird busy — keep holding, or withdraw to cancel.'); return; }
   if (!startFlight('palm')) return;
   cueLatched = true;
-  cameraStatus('Bird cued — withdraw your hand before the next cue.');
+  cueReleasedSince = null;
+  cameraStatus('Bird cued — move your hand out of frame before the next cue.');
 }
 
 document.querySelector('#camera').onclick = async () => {
