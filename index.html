@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Augmented Shadowplay</title>
+  <style>
+    html, body { margin: 0; overflow: hidden; background: #000; }
+    canvas { display: block; }
+    #controls { position: fixed; left: 16px; top: 14px; width: min(190px, 21vw);
+      color: #88877f; font: 12px/1.5 system-ui, sans-serif; }
+    h1 { font-size: 12px; font-weight: 500; margin: 0 0 8px; }
+    p { margin: 7px 0; }
+    button { font: inherit; color: inherit; background: #151515; border: 1px solid #343434;
+      border-radius: 3px; margin: 4px 4px 4px 0; padding: 3px 6px; cursor: pointer; }
+    label { display: block; }
+    input[type=range] { width: 90px; vertical-align: middle; }
+    summary { cursor: pointer; margin-top: 10px; }
+    #camera-status { margin-top: 5px; }
+    @media (max-width: 600px) { #controls { font-size: 10px; width: 175px; } details { max-width: 150px; } }
+  </style>
+</head>
+<body>
+  <aside id="controls">
+    <h1>SHADOWPLAY</h1>
+    <p>Space · cue bird<br>Click · place feet on your palm<br>Arrows · fine tune (Shift ×10)<br>M · landing marker &nbsp; F · fullscreen</p>
+    <div id="status" role="status">Ready</div>
+    <details id="options">
+      <summary>Calibration & camera</summary>
+      <label><input id="marker" type="checkbox" checked> Landing marker</label>
+      <label>Bird size <input id="size" type="range" min="0.5" max="2" step="0.05" value="1"></label>
+      <button id="fly">Cue bird</button><button id="fullscreen">Fullscreen</button>
+      <button id="camera">Enable camera</button>
+      <label><input id="camera-overlay" type="checkbox" checked> Show camera in circle</label>
+      <label>Camera opacity <input id="camera-opacity" type="range" min="0" max="100" step="1" value="50"> <output id="opacity-value">50%</output></label>
+      <label><input id="camera-mirror" type="checkbox" checked> Mirror camera</label>
+      <label><input id="camera-cue" type="checkbox"> Enable palm cue</label>
+      <button id="learn-pose" disabled>Learn palm-up pose</button>
+      <div id="camera-status" role="status">Camera off. Enable it to rehearse with your hand.</div>
+      <p>Use Space to rehearse. Camera transparency does not affect the bird. For an optional palm cue, enable it above, then offer a relaxed palm facing the ceiling, learn that pose, then withdraw your hand. Hold it again for 0.9 seconds to cue once. Withdraw for 0.7 seconds to rearm.</p>
+    </details>
+  </aside>
+  <script src="vendor/p5.min.js"></script>
+  <script src="sketch.js"></script>
+  <script src="camera.js"></script>
+</body>
+</html>
