@@ -37,7 +37,7 @@ The feed is center-cropped to fill the circle without stretching. **Disable came
 2. Check **Follow open palm**. Hand tracking assets download the first time. Put your open hand inside the circle in good camera light.
 3. The landing crosshair follows the center of your palm. Click the spot where you want the feet, or use arrows, to add an alignment offset. **Reset palm alignment** removes that offset.
 4. Press **Space**. The bird approaches the moving perch and continues following it while perched and pecking.
-5. For a hands-free trigger, also check **Enable palm cue**, offer a palm facing the ceiling, and click **Learn palm-up pose**. Withdraw briefly and offer it again.
+5. For a hands-free trigger, also check **Palm cue + follow**, offer a palm facing the ceiling, and click **Learn palm-up pose**. Withdraw briefly and offer it again.
 
 Following accepts an open hand without pose learning; the automatic cue requires learning your palm-up orientation. The landmark filter reduces jitter. A missing/closed hand or a hand outside the circle stops updating the bird after a short grace period; the bird holds its last position rather than jumping. Turn following off to return to click-based manual calibration. The camera and tracking can run with the video overlay hidden.
 
@@ -47,7 +47,7 @@ Coordinates match the overlay's crop and mirror setting. This is suitable for ca
 
 Use a browser that supports camera access on **HTTPS or localhost**. Local HTML camera permissions vary by browser; use a local server if permission is unavailable. Palm cue mode needs Internet access to `cdn.jsdelivr.net` to download pinned MediaPipe Hands 0.4.1675469240 assets. p5.js 1.11.11 is vendored locally (LGPL-2.1).
 
-1. Expand **Calibration & camera**, click **Enable camera**, check **Enable palm cue**, and grant camera permission.
+1. Expand **Calibration & camera**, click **Enable camera**, check **Palm cue + follow**, and grant camera permission.
 2. Position the camera so your actual hand is visible in sufficient light. The camera should see your hand, not just its wall shadow. Turn off **Show camera in circle** for projection; leave it on for screen rehearsal.
 3. Offer your relaxed, open, palm-up pose and click **Learn palm-up pose**. Keep using the same hand and camera angle; relearn after moving the camera. The learned orientation is temporary.
 4. Withdraw your hand for at least 0.7 seconds. Offer it again and hold for 0.9 seconds to cue once. Keeping it held does not repeat the cue. Withdraw to rearm.
@@ -62,3 +62,5 @@ The cue uses local 3D hand landmarks, an open-finger check, and similarity to th
 - `index.html`: muted instructions and controls outside the circle.
 
 Browser checks cover the full animation, clipping at multiple flight/peck times, marker toggling, resize, standalone packaging and synthetic one-shot cue/rearm timing. These do not replace a real hand/projector test.
+
+Enabling **Palm cue + follow** automatically enables **Follow open palm**, so the offered palm becomes the perch. You can explicitly turn following off afterward if you want a fixed, manually calibrated perch.

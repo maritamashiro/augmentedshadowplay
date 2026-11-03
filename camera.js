@@ -184,7 +184,11 @@ async function changeTrackingMode() {
   }
 }
 
-document.querySelector('#camera-cue').onchange = changeTrackingMode;
+document.querySelector('#camera-cue').onchange = async event => {
+  // An offered palm should be both the cue and the perch by default.
+  if (event.target.checked) document.querySelector('#hand-follow').checked = true;
+  await changeTrackingMode();
+};
 document.querySelector('#hand-follow').onchange = changeTrackingMode;
 document.querySelector('#reset-hand-offset').onclick = () => { handOffset = { x: 0, y: 0 }; };
 document.querySelector('#camera-mirror').onchange = () => {
