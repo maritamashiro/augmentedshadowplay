@@ -2,6 +2,8 @@
 const FLIGHT_SECONDS = 3.2;
 const PAUSE_SECONDS = 0.9;
 const PECK_SECONDS = 0.55;
+const HAND_DEPARTURE_DELAY_MS = 700;
+const DEPARTURE_SECONDS = 1.4;
 const PAPER = '#f4edda';
 const INK = '#080909';
 
@@ -12,6 +14,7 @@ let startedAt = null;
 let markerVisible = true;
 let birdSize = 1;
 let flightFollowsPalm = false;
+let departure = null;
 
 function setup() {
   const canvas = createCanvas(windowWidth, windowHeight);
@@ -37,6 +40,7 @@ function startFlight(source = 'space') {
     cameraStatus('Waiting for a live palm inside the circle — no flight triggered.');
     return false;
   }
+  departure = null;
   flightFollowsPalm = Boolean(palm);
   flightTarget = (palm || landing).copy();
   const light = lightCircle();
@@ -82,6 +86,7 @@ function draw() {
 }
 
 function drawSequence() {
+  if (departure) { drawDeparture(); return; }
 
   const elapsed = (millis() - startedAt) / 1000;
   const progress = constrain(elapsed / FLIGHT_SECONDS, 0, 1);
@@ -96,6 +101,13 @@ function drawSequence() {
   const x = lerp(flightStart.x, flightTarget.x, travel) * width;
   const y = lerp(flightStart.y, flightTarget.y, travel) * height
     - sin(PI * progress) * height * 0.12;
+  // A closed/turned hand can still be visible: departure is based on loss of
+  // hand landmarks, not just failure to match the learned palm-up pose.
+  if (flightFollowsPalm && performance.now() - lastHandSeenAt > HAND_DEPARTURE_DELAY_MS) {
+    departure = { startedAt: millis(), x, y };
+    drawDeparture();
+    return;
+  }
   const grounded = progress >= 1;
   const peckTime = elapsed - FLIGHT_SECONDS - PAUSE_SECONDS;
   let peck = 0;
@@ -107,6 +119,25 @@ function drawSequence() {
   document.querySelector('#status').textContent = !grounded ? 'Flying'
     : peckTime < 0 ? 'Landed — pausing'
     : peckTime < PECK_SECONDS * 2 ? 'Pecking' : 'Perched — Space to replay';
+}
+
+// Take off from the exact current position, accelerate upward and right, and
+// disappear behind the same circular mask used for the incoming flight.
+function drawDeparture() {
+  const elapsed = (millis() - departure.startedAt) / 1000;
+  const t = constrain(elapsed / DEPARTURE_SECONDS, 0, 1);
+  const light = lightCircle();
+  const exitX = light.x + light.radius + 180 * birdSize;
+  const x = lerp(departure.x, exitX, t * t);
+  const y = departure.y - sin(t * PI / 2) * light.radius * 1.1;
+  drawBird(x, y, false, 0, elapsed, max(0, 1 - t * 4));
+  document.querySelector('#status').textContent = 'Hand gone — flying away';
+  if (t >= 1) {
+    departure = null;
+    startedAt = null;
+    flightFollowsPalm = false;
+    document.querySelector('#status').textContent = 'Bird away — offer your palm or press Space';
+  }
 }
 
 // A side-on sparrow built from curved, overlapping black shapes.

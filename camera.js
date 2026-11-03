@@ -15,6 +15,7 @@ let cueLatched = true;
 let cameraGeneration = 0;
 let trackedPalm = null;
 let trackedPalmAt = -Infinity;
+let lastHandSeenAt = -Infinity;
 let handOffset = { x: 0, y: 0 };
 const HAND_LOST_MS = 450;
 const cameraStatus = message => {
@@ -212,6 +213,7 @@ function cameraPointToCanvas(point) {
 }
 
 function updateTrackedPalm(points, open, now) {
+  if (points?.length === 21) lastHandSeenAt = now;
   if (!points || !open) return;
   const palm = [0, 5, 9, 13, 17].reduce((sum, i) => ({
     x: sum.x + points[i].x / 5, y: sum.y + points[i].y / 5
@@ -243,7 +245,7 @@ function updateHandStatus() {
   document.querySelector('#hand-status').textContent = !following ? 'Hand following off — manual landing.'
     : !cameraStream ? 'Enable the camera to follow your palm.'
     : trackedLanding() ? 'Following open palm — click to align the feet.'
-    : 'Looking for an open palm inside the circle. Last bird position held.';
+    : 'Looking for an open palm inside the circle. Remove your hand to send the bird away.';
 }
 
 function placeLanding(x, y) {
@@ -302,8 +304,8 @@ function updateCameraGate(matches, now) {
   if (cueHeldSince === null) cueHeldSince = now;
   if (now - cueHeldSince < HOLD_MS) { cameraStatus('Hold your palm steady…'); return; }
   // Do not interrupt a Space cue or a bird already in its flight/peck sequence.
-  const busy = startedAt !== null && millis() - startedAt <
-    (FLIGHT_SECONDS + PAUSE_SECONDS + PECK_SECONDS * 2) * 1000;
+  const busy = departure !== null || (startedAt !== null && millis() - startedAt <
+    (FLIGHT_SECONDS + PAUSE_SECONDS + PECK_SECONDS * 2) * 1000);
   if (busy) { cameraStatus('Bird busy — keep holding, or withdraw to cancel.'); return; }
   if (!startFlight('palm')) return;
   cueLatched = true;

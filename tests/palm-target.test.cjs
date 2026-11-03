@@ -95,3 +95,62 @@ test('learning a pose clears an old manual alignment offset', () => {
   element('#learn-pose').onclick();
   assert.equal(vm.runInContext('handOffset.x === 0 && handOffset.y === 0', context), true);
 });
+
+test('lost hand gets a grace period, then bird flies away and clears', () => {
+  const { context, element } = sketchContext();
+  element('#hand-follow').checked = true;
+  const result = vm.runInContext(`
+    let clock = 1000;
+    performance.now = millis = () => clock;
+    updateTrackedPalm(Array.from({ length: 21 }, () => ({ x: 0.60, y: 0.55 })), true, clock);
+    startFlight('palm');
+    startedAt = -5000;
+    let drawn = null;
+    drawBird = (x, y) => { drawn = { x, y }; };
+    clock = 1600;
+    drawSequence();
+    const flickerIgnored = departure === null;
+    const perchedX = drawn.x;
+    clock = 1800;
+    drawSequence();
+    const takeoffX = departure.x;
+    clock = 2400;
+    drawSequence();
+    const movedRight = drawn.x > takeoffX;
+    clock = 3300;
+    drawSequence();
+    ({ flickerIgnored, perchedX, takeoffX, movedRight, cleared: startedAt === null && departure === null });
+  `, context);
+  assert.equal(result.flickerIgnored, true);
+  assert.equal(result.perchedX, result.takeoffX);
+  assert.equal(result.movedRight, true);
+  assert.equal(result.cleared, true);
+});
+
+test('visible closed hand does not trigger departure', () => {
+  const { context, element } = sketchContext();
+  element('#hand-follow').checked = true;
+  const stays = vm.runInContext(`
+    updateTrackedPalm(Array.from({ length: 21 }, () => ({ x: 0.60, y: 0.55 })), true, 1000);
+    startFlight('palm');
+    startedAt = -5000;
+    performance.now = () => 3000;
+    updateTrackedPalm(Array.from({ length: 21 }, () => ({ x: 0.60, y: 0.55 })), false, 3000);
+    drawBird = () => {};
+    drawSequence();
+    departure === null;
+  `, context);
+  assert.equal(stays, true);
+});
+
+test('manual flight stays perched without a camera hand', () => {
+  const { context } = sketchContext();
+  const stays = vm.runInContext(`
+    startFlight();
+    startedAt = -5000;
+    drawBird = () => {};
+    drawSequence();
+    departure === null && startedAt !== null;
+  `, context);
+  assert.equal(stays, true);
+});
