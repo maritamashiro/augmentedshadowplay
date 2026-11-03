@@ -11,6 +11,7 @@ let flightStart;
 let startedAt = null;
 let markerVisible = true;
 let birdSize = 1;
+let flightFollowsPalm = false;
 
 function setup() {
   const canvas = createCanvas(windowWidth, windowHeight);
@@ -28,13 +29,21 @@ function setup() {
   document.querySelector('#fullscreen').onclick = () => fullscreen(!fullscreen());
 }
 
-function startFlight() {
-  // Snapshot the perch so adjustments during a flight apply to the next replay.
-  flightTarget = (trackedLanding() || landing).copy();
+function startFlight(source = 'space') {
+  const palmCue = source === 'palm';
+  const palm = trackedLanding(palmCue);
+  // Automatic cues must never silently use the fixed manual marker.
+  if (palmCue && !palm) {
+    cameraStatus('Waiting for a live palm inside the circle — no flight triggered.');
+    return false;
+  }
+  flightFollowsPalm = Boolean(palm);
+  flightTarget = (palm || landing).copy();
   const light = lightCircle();
   flightStart = createVector((light.x - light.radius - 160) / width,
     Math.max(0.12, flightTarget.y - 0.24));
   startedAt = millis();
+  return true;
 }
 
 function lightCircle() {
@@ -76,7 +85,7 @@ function drawSequence() {
 
   const elapsed = (millis() - startedAt) / 1000;
   const progress = constrain(elapsed / FLIGHT_SECONDS, 0, 1);
-  const hand = trackedLanding();
+  const hand = flightFollowsPalm ? trackedLanding(true) : null;
   if (hand) {
     // Ease the bird toward a moving perch, including after landing.
     const follow = 1 - Math.exp(-min(deltaTime, 100) / 80);
@@ -211,11 +220,12 @@ function smoothstep(low, high, value) {
 }
 
 function drawLandingMarker() {
-  const point = trackedLanding() || landing;
+  const live = trackedLanding();
+  const point = live || (flightFollowsPalm && flightTarget ? flightTarget : landing);
   const x = point.x * width;
   const y = point.y * height;
   push();
-  stroke('#b65c45');
+  stroke(live ? '#447c60' : '#b65c45');
   strokeWeight(1);
   noFill();
   circle(x, y, 24);
@@ -225,7 +235,7 @@ function drawLandingMarker() {
   fill('#90503e');
   textAlign(CENTER);
   textSize(12);
-  text('LANDING POINT · FEET', constrain(x, 90, width - 90), y > height - 40 ? y - 30 : y + 38);
+  text(live ? 'LIVE PALM · FEET' : flightFollowsPalm ? 'LAST PALM · FEET' : 'MANUAL LANDING · FEET', constrain(x, 90, width - 90), y > height - 40 ? y - 30 : y + 38);
   pop();
 }
 

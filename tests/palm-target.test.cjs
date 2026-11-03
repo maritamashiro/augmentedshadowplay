@@ -61,3 +61,37 @@ test('palm-cued flight lands at tracked palm rather than manual marker', async (
   assert.ok(Math.abs(result.drawn.y - result.palm.y) < 0.001);
   assert.ok(Math.abs(result.drawn.x - result.manual.x) > 100);
 });
+
+test('automatic cue refuses to use a manual marker when palm data is missing', () => {
+  const { context } = sketchContext();
+  const result = vm.runInContext(`
+    const fired = startFlight('palm');
+    ({ fired, startedAt });
+  `, context);
+  assert.equal(result.fired, false);
+  assert.equal(result.startedAt, null);
+});
+
+test('actual automatic cue targets palm even if the follow checkbox is unchecked', () => {
+  const { context, element } = sketchContext();
+  element('#camera-cue').checked = true;
+  const result = vm.runInContext(`
+    updateTrackedPalm(Array.from({ length: 21 }, () => ({ x: 0.60, y: 0.55 })), true, 1000);
+    const target = trackedLanding(true);
+    cueLatched = false;
+    cueHeldSince = 0;
+    updateCameraGate(true, 1000);
+    ({ startedAt, targetX: flightTarget.x, palmX: target.x, manualX: landing.x, follows: flightFollowsPalm });
+  `, context);
+  assert.equal(result.startedAt, 1000);
+  assert.equal(result.targetX, result.palmX);
+  assert.notEqual(result.targetX, result.manualX);
+  assert.equal(result.follows, true);
+});
+
+test('learning a pose clears an old manual alignment offset', () => {
+  const { context, element } = sketchContext();
+  vm.runInContext('handOffset = { x: 0.2, y: 0.1 }; latestPalm = { open: true, normal: [0, 1, 0] };', context);
+  element('#learn-pose').onclick();
+  assert.equal(vm.runInContext('handOffset.x === 0 && handOffset.y === 0', context), true);
+});

@@ -230,8 +230,8 @@ function updateTrackedPalm(points, open, now) {
   trackedPalmAt = now;
 }
 
-function trackedLanding() {
-  if (!document.querySelector('#hand-follow').checked || !cameraStream || !trackedPalm ||
+function trackedLanding(forcePalm = false) {
+  if ((!forcePalm && !trackingRequested()) || !cameraStream || !trackedPalm ||
       performance.now() - trackedPalmAt > HAND_LOST_MS) return null;
   const point = createVector(trackedPalm.x + handOffset.x, trackedPalm.y + handOffset.y);
   constrainLanding(point);
@@ -239,7 +239,7 @@ function trackedLanding() {
 }
 
 function updateHandStatus() {
-  const following = document.querySelector('#hand-follow').checked;
+  const following = trackingRequested();
   document.querySelector('#hand-status').textContent = !following ? 'Hand following off — manual landing.'
     : !cameraStream ? 'Enable the camera to follow your palm.'
     : trackedLanding() ? 'Following open palm — click to align the feet.'
@@ -249,7 +249,7 @@ function updateHandStatus() {
 function placeLanding(x, y) {
   const target = createVector(x, y);
   constrainLanding(target);
-  if (document.querySelector('#hand-follow').checked && trackedPalm && trackedLanding()) {
+  if (trackingRequested() && trackedPalm && trackedLanding()) {
     handOffset = { x: target.x - trackedPalm.x, y: target.y - trackedPalm.y };
   } else landing.set(target);
 }
@@ -285,7 +285,7 @@ function handleCameraResults(results) {
   if (!document.querySelector('#camera-cue').checked || !learnedPalmNormal) return;
   const dot = latestPalm?.normal.reduce((sum, n, i) => sum + n * learnedPalmNormal[i], 0) ?? -1;
   const matches = latestPalm?.open && dot > 0.82;
-  updateCameraGate(Boolean(matches) && (!document.querySelector('#hand-follow').checked || Boolean(trackedLanding())), now);
+  updateCameraGate(Boolean(matches) && Boolean(trackedLanding(true)), now);
 }
 
 // Separate timing from detection so the one-shot behavior can be tested.
@@ -305,8 +305,8 @@ function updateCameraGate(matches, now) {
   const busy = startedAt !== null && millis() - startedAt <
     (FLIGHT_SECONDS + PAUSE_SECONDS + PECK_SECONDS * 2) * 1000;
   if (busy) { cameraStatus('Bird busy — keep holding, or withdraw to cancel.'); return; }
+  if (!startFlight('palm')) return;
   cueLatched = true;
-  startFlight();
   cameraStatus('Bird cued — withdraw your hand before the next cue.');
 }
 
@@ -324,6 +324,7 @@ document.querySelector('#learn-pose').onclick = () => {
     return;
   }
   learnedPalmNormal = latestPalm.normal.slice();
+  handOffset = { x: 0, y: 0 }; // Relearning starts on the actual palm, not an old alignment.
   resetCameraGate();
   cameraStatus('Pose learned. Withdraw your hand, then offer it again to cue.');
 };

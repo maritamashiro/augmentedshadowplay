@@ -63,4 +63,4 @@ The cue uses local 3D hand landmarks, an open-finger check, and similarity to th
 
 Browser checks cover the full animation, clipping at multiple flight/peck times, marker toggling, resize, standalone packaging and synthetic one-shot cue/rearm timing. These do not replace a real hand/projector test.
 
-Enabling **Palm cue + follow** automatically enables **Follow open palm**, so the offered palm becomes the perch. You can explicitly turn following off afterward if you want a fixed, manually calibrated perch.
+Enabling **Palm cue + follow** automatically enables **Follow open palm**, so the offered palm becomes the perch. Automatic palm cues require a live palm and never fall back to the manual marker. Disable both palm options for a fixed manual perch. Relearning a pose clears previous alignment offsets. The green marker labeled LIVE PALM shows the current target; LAST PALM indicates tracking has been lost.
