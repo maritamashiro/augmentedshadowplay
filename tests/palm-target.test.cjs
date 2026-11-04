@@ -209,3 +209,16 @@ test('a stalled inference loop cannot complete a cue hold', () => {
   `, context);
   assert.equal(result, 0);
 });
+
+test('silhouette-only tracking does not replace the manual landing point', () => {
+  const { context, element } = sketchContext();
+  element('#hand-silhouette').checked = true;
+  const result = vm.runInContext(`
+    updateTrackedPalm(Array.from({ length: 21 }, () => ({ x: 0.60, y: 0.55 })), true, 1000);
+    startFlight();
+    ({ requested: trackingRequested(), follows: flightFollowsPalm, x: flightTarget.x, manualX: landing.x });
+  `, context);
+  assert.equal(result.requested, true);
+  assert.equal(result.follows, false);
+  assert.equal(result.x, result.manualX);
+});

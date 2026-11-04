@@ -7,6 +7,7 @@
   <style>
     html, body { margin: 0; overflow: hidden; background: #000; }
     canvas { display: block; }
+    #options { max-height: calc(100vh - 175px); overflow-y: auto; }
     #controls { position: fixed; left: 16px; top: 14px; width: min(190px, 21vw);
       color: #88877f; font: 12px/1.5 system-ui, sans-serif; }
     h1 { font-size: 12px; font-weight: 500; margin: 0 0 8px; }
@@ -22,7 +23,7 @@
 </head>
 <body>
   <aside id="controls">
-    <h1>SHADOWPLAY · PALM 5</h1>
+    <h1>SHADOWPLAY · PALM 6</h1>
     <p>Space · cue bird<br>Click · place feet on your palm<br>Arrows · fine tune (Shift ×10)<br>M · landing marker &nbsp; F · fullscreen</p>
     <div id="status" role="status">Ready</div>
     <details id="options">
@@ -33,6 +34,8 @@
       <button id="camera">Enable camera</button>
       <label><input id="camera-overlay" type="checkbox" checked> Show camera in circle</label>
       <label>Camera opacity <input id="camera-opacity" type="range" min="0" max="100" step="1" value="50"> <output id="opacity-value">50%</output></label>
+      <label><input id="hand-silhouette" type="checkbox"> Actual hand silhouette</label>
+      <div id="silhouette-status" role="status">Silhouette off</div>
       <label><input id="camera-mirror" type="checkbox" checked> Mirror camera</label>
       <label><input id="hand-follow" type="checkbox"> Follow open palm</label>
       <button id="reset-hand-offset">Reset palm alignment</button>
@@ -45,7 +48,8 @@
     </details>
   </aside>
   <script src="vendor/p5.min.js"></script>
-  <script src="sketch.js?v=palm5"></script>
-  <script src="camera.js?v=palm5"></script>
+  <script src="sketch.js?v=palm6"></script>
+  <script src="camera.js?v=palm6"></script>
+  <script src="silhouette.js?v=palm6"></script>
 </body>
 </html>

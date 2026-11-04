@@ -1,6 +1,6 @@
 # Augmented Shadowplay
 
-A p5.js projection: black fullscreen canvas, centered warm ivory light circle, and a sparrow silhouette clipped to the light. Your real hand creates the palm shadow; the sketch does not draw a hand.
+A p5.js projection: black fullscreen canvas, centered warm ivory light circle, and a sparrow silhouette clipped to the light. For projection your real hand creates the palm shadow. Screen rehearsal optionally segments the actual camera hand into a solid black cutout.
 
 ## Open from GitHub Pages
 
@@ -31,6 +31,14 @@ Expand **Calibration & camera** and click **Enable camera**. The live camera ima
 
 The feed is center-cropped to fill the circle without stretching. **Disable camera** releases the webcam. Rehearsal uses browser camera access only; Internet/model downloads are needed only when **Enable palm cue** is checked. Tracking failures leave the camera overlay usable.
 
+## Live hand silhouette
+
+Enable the camera, then check **Actual hand silhouette**. This puts a solid black cutout of the camera hand over the camera image, inside the ivory circle and behind the bird. The existing **Camera opacity** slider still controls only the underlying video; 0% gives a hand shadow on ivory, while 100% shows the hand cutout on full video. The silhouette also works with **Show camera in circle** unchecked. Mirroring applies identically to video, cutout and palm coordinates. Toggling the silhouette does not itself enable palm following or the cue.
+
+The outline comes from image segmentation (OpenCV GrabCut), with hand landmarks providing foreground seeds and a small image crop. It is not a vector tracing of the landmark skeleton. Use good lighting, keep the whole hand in the frame, and choose a background that contrasts with your skin. Similar background colors, motion blur and occlusions can produce rough edges; very low contrast hides the cutout and asks for better lighting/background rather than displaying a fake shape. A small wrist section may be included.
+
+The first activation downloads OpenCV.js 4.10.0 via pinned `@techstark/opencv-js@4.10.0-release.1` from `cdn.jsdelivr.net`. Segmentation runs in a Web Worker on a hand crop up to 224 pixels, at most eight updates per second, so the animation and camera cue stay on their own loop. Frames stay in the browser. The mask is removed when hand landmarks disappear or the mask becomes stale. Disable the toggle to stop the worker. Actual-hand silhouette quality needs a real-camera test.
+
 ## Hand tracking for screen rehearsal
 
 1. Expand **Calibration & camera**, click **Enable camera**, and keep the overlay visible.
@@ -60,6 +68,9 @@ The cue uses local 3D hand landmarks, an open-finger check, and similarity to th
 - `sketch.js`: circle geometry, clipping, manual landing calibration and bird animation. Timing constants are at the top.
 - `camera.js`: optional landmark loading, palm following, camera coordinate mapping, pose learning, hold timing and one-shot rearming.
 - `index.html`: muted instructions and controls outside the circle.
+- `silhouette.js` and `silhouette-worker.js`: video crop capture, image segmentation and black-mask overlay.
+- `tools/build-standalone.py`: optional single-file packaging, including the segmentation worker.
+- `tests/silhouette-browser.cjs`: real OpenCV segmentation and compositing checks using a controlled hand-shaped image; requires Playwright and Chromium. Run with `node tests/silhouette-browser.cjs`.
 
 Browser checks cover the full animation, clipping at multiple flight/peck times, marker toggling, resize, standalone packaging and synthetic one-shot cue/rearm timing. These do not replace a real hand/projector test.
 

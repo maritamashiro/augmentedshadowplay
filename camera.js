@@ -128,6 +128,7 @@ async function startPalmTracking() {
         await stopPalmTracking();
         document.querySelector('#camera-cue').checked = false;
         document.querySelector('#hand-follow').checked = false;
+        disableSilhouetteAfterTrackingFailure();
         cameraStatus('Palm tracking stopped: ' + error.message + ' Camera overlay and Space still work.');
       }
     }
@@ -137,7 +138,16 @@ async function startPalmTracking() {
     await stopPalmTracking();
     document.querySelector('#camera-cue').checked = false;
     document.querySelector('#hand-follow').checked = false;
+    disableSilhouetteAfterTrackingFailure();
     cameraStatus(error.message + ' Camera overlay and Space still work.');
+  }
+}
+
+function disableSilhouetteAfterTrackingFailure() {
+  document.querySelector('#hand-silhouette').checked = false;
+  if (typeof stopHandSilhouette === 'function') {
+    stopHandSilhouette();
+    silhouetteStatus('Silhouette off — hand tracking unavailable.');
   }
 }
 
@@ -146,6 +156,7 @@ async function disableCamera() {
   cameraStream = null;
   if (cameraVideo) { cameraVideo.pause(); cameraVideo.srcObject = null; }
   cameraVideo = null;
+  if (typeof clearHandSilhouette === 'function') clearHandSilhouette();
   await stopPalmTracking();
   document.querySelector('#camera').textContent = 'Enable camera';
   cameraStatus('Camera off. Space always works.');
@@ -174,8 +185,13 @@ function drawCameraOverlay(light) {
 document.querySelector('#camera-opacity').oninput = event => {
   document.querySelector('#opacity-value').textContent = event.target.value + '%';
 };
-function trackingRequested() {
+function palmFollowingRequested() {
   return document.querySelector('#camera-cue').checked || document.querySelector('#hand-follow').checked;
+}
+
+function trackingRequested() {
+  return document.querySelector('#camera-cue').checked || document.querySelector('#hand-follow').checked ||
+    document.querySelector('#hand-silhouette').checked;
 }
 
 async function changeTrackingMode() {
@@ -237,7 +253,7 @@ function updateTrackedPalm(points, open, now) {
 }
 
 function trackedLanding(forcePalm = false) {
-  if ((!forcePalm && !trackingRequested()) || !cameraStream || !trackedPalm ||
+  if ((!forcePalm && !palmFollowingRequested()) || !cameraStream || !trackedPalm ||
       performance.now() - trackedPalmAt > HAND_LOST_MS) return null;
   const point = createVector(trackedPalm.x + handOffset.x, trackedPalm.y + handOffset.y);
   constrainLanding(point);
@@ -245,7 +261,7 @@ function trackedLanding(forcePalm = false) {
 }
 
 function updateHandStatus() {
-  const following = trackingRequested();
+  const following = palmFollowingRequested();
   document.querySelector('#hand-status').textContent = !following ? 'Hand following off — manual landing.'
     : !cameraStream ? 'Enable the camera to follow your palm.'
     : trackedLanding() ? 'Following open palm — click to align the feet.'
@@ -255,7 +271,7 @@ function updateHandStatus() {
 function placeLanding(x, y) {
   const target = createVector(x, y);
   constrainLanding(target);
-  if (trackingRequested() && trackedPalm && trackedLanding()) {
+  if (palmFollowingRequested() && trackedPalm && trackedLanding()) {
     handOffset = { x: target.x - trackedPalm.x, y: target.y - trackedPalm.y };
   } else landing.set(target);
 }
@@ -288,6 +304,7 @@ function palmFeatures(points) {
 function handleCameraResults(results) {
   latestPalm = palmFeatures(results.multiHandWorldLandmarks?.[0]);
   const now = performance.now();
+  if (typeof updateHandSilhouette === 'function') updateHandSilhouette(results.multiHandLandmarks?.[0], now);
   updateTrackedPalm(results.multiHandLandmarks?.[0], latestPalm?.open, now);
   if (!document.querySelector('#camera-cue').checked || !learnedPalmNormal) return;
   const dot = latestPalm?.normal.reduce((sum, n, i) => sum + n * learnedPalmNormal[i], 0) ?? -1;

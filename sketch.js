@@ -80,6 +80,7 @@ function draw() {
   drawingContext.arc(light.x, light.y, light.radius, 0, Math.PI * 2);
   drawingContext.clip();
   drawCameraOverlay(light);
+  drawHandSilhouette(light);
   if (markerVisible) drawLandingMarker();
   if (startedAt !== null) drawSequence();
   drawingContext.restore();
